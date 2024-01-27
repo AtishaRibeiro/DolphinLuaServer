@@ -1,31 +1,32 @@
-#pragma once
-
+#include "CommonTypes.h"
 #include "DolphinAddress.h"
-#include "Camera.h"
-#include "Player.h"
-
+#include "LuaInstance.h"
 #include "json.hpp"
 
-#include <string>
-
-enum GameId { PAL, NTSC_U, NTSC_J, NTSC_K, INVALID };
-
-GameId getGameId(std::string idString);
+#include <filesystem>
+#include <mutex>
+#include <optional>
+#include <stop_token>
 
 class Game {
 public:
-  Game(GameId gameId);
+  Game();
 
-  void update();
+  nlohmann::json getData();
 
-  nlohmann::json getJson();
+  void startScriptLoop(std::stop_token stopToken,
+                       std::filesystem::path scriptPath,
+                       std::optional<std::filesystem::path> jsonDumpPath);
 
-  NLOHMANN_DEFINE_TYPE_INTRUSIVE(Game, player, camera)
 private:
-  GameId mGameId;
-  Pointers mPointers;
-  std::shared_ptr<PointerCache> mCache;
+  // Loop that waits until the next frame has begun
+  int waitUntilNextFrame(std::stop_token stopToken);
 
-  Player player;
-  Camera camera;
+  LuaInstance mLua;
+  nlohmann::json mCurrentData;
+  std::vector<nlohmann::json> mRecordedData;
+  std::mutex mDataMutex;
+
+  DolphinAddress mFrameAddress;
+  u32 mCurrentFrame;
 };

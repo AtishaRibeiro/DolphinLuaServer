@@ -1,63 +1,85 @@
 #include "Game.h"
 
-#include "Camera.h"
-#include "DolphinAddress.h"
 #include "DolphinInterface.h"
 
-GameId getGameId(std::string idString) {
-  if (idString == "RMCP01") {
-    return GameId::PAL;
-    // TODO: other game id's
-  } else {
-    throw std::exception();
+#include <chrono>
+#include <cstdlib>
+#include <fstream>
+
+using namespace std::chrono;
+
+Game::Game() {
+  if (auto hookRes = DolphinInterface::Instance().hook(); hookRes.isError()) {
+    throw std::runtime_error(
+        "Failed to hook. Make sure that Dolphin is running.");
+  }
+
+  mFrameAddress = DolphinAddress(0x80386be4);
+}
+
+nlohmann::json Game::getData() {
+  auto guard = std::lock_guard<std::mutex>(mDataMutex);
+  return mCurrentData;
+}
+
+void Game::startScriptLoop(std::stop_token stopToken,
+                            std::filesystem::path scriptPath,
+                            std::optional<std::filesystem::path> jsonDumpPath) {
+  mLua = LuaInstance(scriptPath,
+                     DolphinInterface::Instance().readGameID().getValue());
+
+  while (true) {
+    // Wait until the next frame so all our reads happen araound the same
+    // time
+    auto curFrame = waitUntilNextFrame(stopToken);
+
+    // Reload the script if modified
+    mLua.reloadScript();
+    auto watchStart = high_resolution_clock::now();
+    auto data = mLua.runScript();
+    auto diff = high_resolution_clock::now() - watchStart;
+    auto castDiff = duration_cast<microseconds>(diff).count();
+    std::cout << castDiff << "μs" << std::endl;
+
+    auto guard = std::lock_guard<std::mutex>(mDataMutex);
+    mCurrentData = {};
+    mCurrentData["data"] = data;
+    mCurrentData["misc"]["time"] = castDiff;
+    mCurrentData["misc"]["frame"] = curFrame;
+
+    if (jsonDumpPath.has_value()) {
+      mRecordedData.push_back(mCurrentData);
+
+      // Write collected data to json when an abort signal is detected
+      if (stopToken.stop_requested()) {
+        nlohmann::json dumpJson = mRecordedData;
+
+        std::ofstream jsonFile;
+        jsonFile.open(jsonDumpPath.value());
+        jsonFile << dumpJson.dump();
+        jsonFile.close();
+
+        std::cout << "Written to " << jsonDumpPath.value() << std::endl;
+        break;
+      }
+    } else if (stopToken.stop_requested()) {
+      break;
+    }
   }
 }
 
-std::tuple<DolphinAddress, bool>
-PointerCache::getPointer(const DolphinAddress address) {
-  auto res = address[0];
-  if (!res.isValid()) {
-    // If the address is invalid, we don't bother updating the cache.
-    return {res, true};
-  }
+int Game::waitUntilNextFrame(std::stop_token stopToken) {
+  std::optional<u32> maybeFrameNr;
+  do {
+    if (stopToken.stop_requested()) {
+      return 0;
+    }
 
-  if (!mCache.contains(address)) {
-    mCache[address] = res;
-    return {res, true};
-  } else if (mCache[address] == address) {
-    return {res, false};
-  } else {
-    mCache[address] = res;
-    return {res, true};
-  }
+    maybeFrameNr = DolphinInterface::Instance().readType<u32>(mFrameAddress);
+    if (!maybeFrameNr.has_value()) {
+      throw std::runtime_error("Could not read frame address.");
+    }
+  } while (maybeFrameNr.value() == mCurrentFrame);
+  mCurrentFrame = maybeFrameNr.value();
+  return 0;
 }
-
-Game::Game(GameId gameId) : mGameId(gameId) {
-  switch (gameId) {
-  case GameId::PAL:
-    mPointers.raceInfo = 0x9BD730;
-    mPointers.playerHolder = 0x9C18F8;
-    mPointers.cameraManager = 0x9C19B8;
-    mPointers.cameraManager2 = 0x9C19A8;
-    mPointers.kartObjectManager = 0x9C18F8;
-    break;
-  // These need to be filled in still
-  case GameId::NTSC_U:
-  case GameId::NTSC_J:
-  case GameId::NTSC_K:
-  default:
-    throw std::exception();
-  }
-
-  mCache = std::make_shared<PointerCache>();
-  player = Player(mPointers, mCache);
-  camera = Camera(mPointers, mCache);
-}
-
-void Game::update() {
-  // player update is causing core dump?
-  player.update();
-  camera.update();
-}
-
-nlohmann::json Game::getJson() { return *this; }

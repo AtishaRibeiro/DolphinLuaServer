@@ -1,19 +1,8 @@
-#include "DolphinInterface.h"
-#include "Game2.h"
-#include "GameObject.h"
+#include "Game.h"
 #include "Server.h"
 
-#include <arpa/inet.h>
-#include <chrono>
-#include <fmt/core.h>
 #include <iostream>
-#include <netinet/in.h>
-#include <optional>
-#include <sys/socket.h>
 #include <thread>
-#include <unistd.h>
-
-using namespace std::chrono;
 
 // Will be set to 1 if the program was killed (Ctrl-C)
 // This allows us to exit gracefully.
@@ -67,10 +56,10 @@ int main(int argc, char *argv[]) {
 
   try {
     // Gamestate thread (this reads data from Dolphin)
-    auto game = Game2();
+    auto game = Game();
     auto scriptPath =
         "/home/atisha/Documents/MKW/live_values/source/scripts/test.lua";
-    std::jthread gameThread(&Game2::startScriptLoop, &game, scriptPath,
+    std::jthread gameThread(&Game::startScriptLoop, &game, scriptPath,
                             args.dump);
 
     // Server thread
