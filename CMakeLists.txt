@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.27)
 
-project(MKW_Values)
+project(DolphinLuaServer)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,19 +12,20 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 message(STATUS "Using build type ${CMAKE_BUILD_TYPE}")
 
+# Find LuaJit
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(ENV{LUA_DIR} "/usr/local/lib")
-# find_package(LuaJIT)
-# TODO: The find package picks up the wrong lua version (non-jit)
-set(LUA_LIBRARY "/usr/local/lib/libluajit-5.1.so")
-message(${LUA_LIBRARY})
+find_package(LuaJIT)
 
-include_directories("include")
+include_directories("src")
 include_directories(${LUA_INCLUDE_DIR})
-add_subdirectory("lib")
 
+file(GLOB CPP_FILES CONFIGURE_DEPENDS
+  "src/*.cpp"
+)
+set(SOURCE ${CPP_FILES})
 
-add_executable(out main.cpp ${SOURCE})
+add_executable(out src/main.cpp ${SOURCE})
 
 add_subdirectory(fmt EXCLUDE_FROM_ALL)
 target_link_libraries(out PRIVATE fmt::fmt-header-only ${LUA_LIBRARY})
