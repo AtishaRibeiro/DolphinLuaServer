@@ -19,6 +19,7 @@ void signal_handler(int sig_code) {
 struct Arguments {
   int port = 9999;
   std::optional<std::string> dump;
+  std::string script = "UKNOWN SCRIPT";
 };
 
 Arguments parseArguments(int argc, char *argv[]) {
@@ -29,13 +30,16 @@ Arguments parseArguments(int argc, char *argv[]) {
       std::cout << "usage: <something> [options]\n\n"
                    "-p, --port <number>\t\tport used by the server (9999 if "
                    "not specified)\n"
-                   "-d, --dump <file>\t\tjson file to dump the data to"
+                   "-d, --dump <file>\t\tjson file to dump the data to\n"
+                   "-s, --script <file>\t\tlua file"
                 << std::endl;
       exit(0);
     } else if (arg == "-p" || arg == "--port") {
-      args.port = atoi(argv[i++]);
+      args.port = atoi(argv[++i]);
     } else if (arg == "-d" || arg == "--dump") {
-      args.dump = argv[i++];
+      args.dump = argv[++i];
+    } else if (arg == "-s" || arg == "--script") {
+      args.script = argv[++i];
     } else {
       std::cerr << "Unrecognised option '" << arg << "'" << std::endl;
       exit(1);
@@ -57,9 +61,7 @@ int main(int argc, char *argv[]) {
   try {
     // Gamestate thread (this reads data from Dolphin)
     auto game = Game();
-    auto scriptPath =
-        "/home/atisha/Documents/MKW/live_values/source/scripts/test.lua";
-    std::jthread gameThread(&Game::startScriptLoop, &game, scriptPath,
+    std::jthread gameThread(&Game::startScriptLoop, &game, args.script,
                             args.dump);
 
     // Server thread

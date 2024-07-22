@@ -6,7 +6,7 @@
 
 LuaInstance::LuaInstance(std::filesystem::path scriptPath, std::string gameId) {
   if (!std::filesystem::exists(scriptPath)) {
-    std::cerr << "Script does not exist" << std::endl;
+    std::cerr << "Script does not exist: " << scriptPath << std::endl;
     throw std::exception();
   }
   mScriptPath = scriptPath;

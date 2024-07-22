@@ -163,7 +163,6 @@ function ReadCameraData(camera_addr)
   -- We check if this is valid, if so we use that instead of the regular fov.
   -- These values are seemingly out of bounds of the camera object, but they seem to always be at this offset
   local vec2 = read_float_vec(camera_addr + 0x388, 2)
-  print(vec2[1])
   if tostring(vec2[1]) ~= "nan" then
     data.fov = vec2[2]
   else
